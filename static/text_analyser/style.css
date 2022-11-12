@@ -1,0 +1,10 @@
+body {
+    margin: 0;
+}
+
+.main {
+    height: 100vh;
+    background-image: url("img/wordcloud.jpg");
+    background-size: auto 100%;
+    background-position: center;
+}
