@@ -1,10 +1,11 @@
 import re  # разбирем строку на отдельные слова
 from collections import Counter  # считаем самые частые слова
-from docx import Document  # pip install python-docx
-from bs4 import BeautifulSoup  # прасинг xml
+
 import pymorphy2  # нормализация частей речи
-from wordcloud import WordCloud  # pip install wordcloud
+from bs4 import BeautifulSoup  # прасинг xml
 from charset_normalizer import from_path  # нормализуем кодировку
+from docx import Document  # pip install python-docx
+from wordcloud import WordCloud  # pip install wordcloud
 
 
 class Analyser:
@@ -24,16 +25,16 @@ class Analyser:
         self.source_file_path = source_file_path
         if not self.source_file_path:
             raise ValueError(
-                "Невозможно найти файл источника! Проверьте путь к файлу с текстом!"
+                f"Невозможно найти файл источника {self.source_file_path}! Проверьте путь к файлу с текстом!"
             )
 
         self.dest_file_path = dest_file_path
         if not self.dest_file_path:
             raise ValueError(
-                "Невозможно найти файл назначения! Проверьте путь к файлу с картинкой!"
+                f"Невозможно найти файл назначения {self.dest_file_path}! Проверьте путь к файлу с картинкой!"
             )
 
-        self.parts_of_speech = parts_of_speech 
+        self.parts_of_speech = parts_of_speech
         if not self.parts_of_speech:
             raise ValueError(
                 "Не выбраны части речи! Анализ текста невозможен!"
@@ -64,10 +65,10 @@ class Analyser:
             )
 
         self.content = self.make_text_from_file()
-        self.make_words_from_text()
-        self.make_normalized_words()
-        self.make_most_frequent_words()
-        self.make_wordcloud()
+        self.words = self.make_words_from_text()
+        self.normalized_words = self.make_normalized_words()
+        self.most_frequent_words = self.make_most_frequent_words()
+        self.wordcloud = self.make_wordcloud()
         self.save_wordcloud_to_file()
 
     def make_text_from_file(self) -> str:
@@ -76,77 +77,123 @@ class Analyser:
         Вызывает соответствуйющий метод для типов TXT, DOCX, FB2
         Возвращает контент файла строкой
         """
+        content = ""
         if self.source_file_path.endswith(".txt"):
-            return self.make_text_from_txt()
+            content = self.make_text_from_txt()
         elif self.source_file_path.endswith(".docx"):
-            return self.make_text_from_docx()
+            content = self.make_text_from_docx()
         elif self.source_file_path.endswith(".fb2"):
-            return self.make_text_from_fb2()
+            content = self.make_text_from_fb2()
         else:
             raise ValueError("Неверный тип файла! Только TXT, DOCX и FB2!")
 
-    def make_text_from_txt(self):
-        """
-        Делает строку из TXT
-        """
-        return str(from_path(self.source_file_path).best())
+        if not content:
+            raise ValueError(
+                "Не удалось получить текст из файла! Возможно, файл пустой."
+            )
+        return content
 
-    def make_text_from_docx(self):
+    def make_text_from_txt(self) -> str:
         """
-        Делает строку из DOCX
+        Возвращает текст из TXT файла
+        """
+        text = str(from_path(self.source_file_path).best())
+        if not text:
+            raise ValueError(
+                "Не удалось прочитать содержимое файла TXT как текст!"
+            )
+        return text
+
+    def make_text_from_docx(self) -> str:
+        """
+        Возвращает текст из DOCX файла
         """
         file = Document(self.source_file_path)
-        return " ".join([p.text for p in file.paragraphs])
+        text = " ".join([p.text for p in file.paragraphs])
+        if not text:
+            raise ValueError(
+                "Не удалось прочитать содержимое файла DOCX как текст!"
+            )
+        return text
 
-    def make_text_from_fb2(self):
+    def make_text_from_fb2(self) -> str:
         """
-        Делает строку из FB2
+        Возвращает текст из FB2 файла
         """
         with open(self.source_file_path, 'rb') as file:
             data = file.read()
         bs_data = BeautifulSoup(data, "xml")
         sections = bs_data.find_all('section')
-        return " ".join([s.text for s in sections])
+        text = " ".join([s.text for s in sections])
+        if not text:
+            raise ValueError(
+                "Не удалось прочитать содержимое файла FB2 как текст!"
+            )
+        return text
 
-    def make_words_from_text(self):
+    def make_words_from_text(self) -> list:
         """
-        Создает список русских слов со строчной буквы без знаков препинания
+        Возвращает список русских слов со строчной буквы без знаков препинания
         """
-        self.words = re.findall("[а-яё]+", self.content.lower())
-
-    def make_normalized_words(self):
+        words = re.findall("[а-яё]+", self.content.lower())
+        if not words:
+            raise ValueError(
+                "Не удалось распознать отдельные русские слова в тексте!"
+            )
+        return words
+        
+    def make_normalized_words(self) -> list:
         """
-        Создает список нормальных форм слов
+        Возвращает список нормальных форм слов
         для определенных в part_of_speech частей речи.
         https://pymorphy2.readthedocs.io/en/stable/user/grammemes.html#grammeme-docs
         """
         morph = pymorphy2.MorphAnalyzer()
-        self.normalized_words = []
+        normalized_words = []
         for word in self.words:
             parse = morph.parse(word)[0]
             for part in self.parts_of_speech:
                 if part in parse.tag:
-                    self.normalized_words.append(parse.normal_form)
+                    normalized_words.append(parse.normal_form)
 
+        if not normalized_words:
+            raise ValueError(
+                "Не удалось получить нормальныю форму слов в тексте!"
+            )
+        return normalized_words
 
-    def make_most_frequent_words(self):
+    def make_most_frequent_words(self) -> dict:
         """
-        Создает словарь длинной num из самых частых слов по убыванию частоты
+        Возвращает словарь длинной num из самых частых слов по убыванию частоты
         слово: частота
         """
-        self.most_frequent_words = dict(Counter(
+        most_frequent_words = dict(Counter(
             self.normalized_words).most_common(self.words_number))
+        if not most_frequent_words:
+            raise ValueError(
+                "Не удалось посчитать частоту слов в нормальной форме в тексте!"
+            )
+        return most_frequent_words
 
-    def make_wordcloud(self):
+    def make_wordcloud(self) -> WordCloud:
         """
-        Создает объект Wordcloud из словаря self.most_frequent_words
+        Возвращает объект Wordcloud
+        width - ширина в пикселях
+        height  - высота в пикселях
+        background_color - цвет фона словом
+        TODO: Какая модель цвета, можно ли hex?
         """
-        self.wordcloud = WordCloud(
+        wordcloud = WordCloud(
             width=self.wordcloud_width,
             height=self.wordcloud_height,
             background_color=self.wordcloud_background_color
         )
-        self.wordcloud = self.wordcloud.generate_from_frequencies(
+        
+        if not wordcloud:
+            raise ValueError(
+                "Не удалось сгенерировать изображение облака слов!"
+            )
+        return wordcloud.generate_from_frequencies(
             self.most_frequent_words
         )
 
@@ -154,4 +201,9 @@ class Analyser:
         """
         сохраняет Wordcloud в файл filename
         """
-        self.wordcloud.to_file(self.dest_file_path)
+        try:
+            self.wordcloud.to_file(self.dest_file_path)
+        except:
+            raise ValueError(
+                "Не удалось сохранить изображение облака слов в файл!"
+            )

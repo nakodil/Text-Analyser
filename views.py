@@ -9,7 +9,7 @@ def index(request):
     FIXME: поле AnalyserForm wordcloud_background_color не джанговое, не проходит валидацию тоже
     """
     if request.method == "POST":
-        form = forms.AnalyserForm(request.POST)
+        form = forms.AnalyserForm(request.POST, request.FILES)
         if form.is_valid():
             analyser = Analyser(
                 source_file_path=r"C:\Users\Me\Desktop\django_develop\my_project\text_analyser\static\text_analyser\text\text.fb2",
